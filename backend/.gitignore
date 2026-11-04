@@ -9,4 +9,7 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+data/*.db
+data/*.db-shm
+data/*.db-wal
 

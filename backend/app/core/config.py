@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
+    database_url: str = "sqlite:///./data/app.db"
 
     model_config = SettingsConfigDict(
         env_file=".env",
