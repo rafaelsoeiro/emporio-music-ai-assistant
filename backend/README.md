@@ -85,6 +85,28 @@ Os testes de ingestão cobrem a primeira carga, a reexecução idempotente, a
 atualização por chave primária, campos opcionais de pedidos e a rejeição de uma
 coleção incompleta.
 
+## Serviços de consulta
+
+`app.services.read_queries` fornece consultas somente leitura construídas com a
+API parametrizada do SQLAlchemy. Nenhuma função aceita SQL livre ou executa
+`INSERT`, `UPDATE`, `DELETE` ou `COMMIT`.
+
+- `search_available_products`: busca apenas produtos com status `active` e
+  estoque maior que zero. Aceita termo literal aplicado a nome e descrição,
+  `category_id` e preços mínimo/máximo. Retorna `[]` quando nada corresponde.
+- `get_active_promotions`: retorna promoções ativas e calcula o preço final com
+  arredondamento monetário para duas casas decimais. Retorna `[]` quando não há
+  promoções ativas.
+- `get_order_detail`: retorna pedido, cliente, itens, status, pagamento,
+  rastreio, previsão de entrega e observações. Retorna `None` quando o
+  `order_id` não existe. Como os itens não possuem preço histórico próprio, os
+  campos de preço dos itens são identificados como valores atuais do catálogo;
+  o total oficial continua sendo `Order.total_brl`.
+
+Filtros de preço negativos, faixa invertida ou `category_id` não positivo geram
+`ValueError`. Os resultados são dataclasses imutáveis e não expõem entidades ORM
+para alteração.
+
 ## Docker
 
 ```bash
