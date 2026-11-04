@@ -14,6 +14,7 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev]"
 cp .env.example .env
+${EDITOR:-vi} .env  # configure OPENAI_API_KEY antes de usar RAG ou /chat
 alembic upgrade head
 python -m app.scripts.ingest_csv --data-dir app/data
 uvicorn app.main:app --reload
@@ -21,6 +22,12 @@ uvicorn app.main:app --reload
 
 A API ficará disponível em `http://localhost:8000`. A documentação interativa
 fica em `http://localhost:8000/docs`.
+
+### Chave da OpenAI
+
+Defina `OPENAI_API_KEY` no arquivo `backend/.env` (copiado de `.env.example`). A
+chave é necessária para gerar embeddings durante a indexação do PDF e para
+responder em `/chat`. Não compartilhe nem versione o arquivo `.env`.
 
 ## Comandos úteis
 
@@ -231,6 +238,36 @@ curl -X POST http://localhost:8000/chat \
 Fontes de políticas incluem o nome do PDF e a página. Consultas que não usam
 tools retornam `sources: []`. Falha temporária do modelo ou excesso de iterações
 retorna HTTP 503; payload inválido retorna HTTP 422. Ainda não há front-end.
+
+## Decisões técnicas e limitações
+
+- **FastAPI** expõe a API HTTP e a documentação OpenAPI em `/docs`.
+- **LangChain** integra `ChatOpenAI`, as tools tipadas e o carregamento e divisão
+  do PDF. O loop de tools é explícito para permitir validação e testes.
+- **SQLite e SQLAlchemy** armazenam catálogo, promoções, clientes e pedidos em
+  arquivo local; as consultas de atendimento são somente leitura.
+- **Qdrant local persistente** guarda os vetores em `data/qdrant`, sem exigir
+  serviço Qdrant separado.
+- **RAG** recupera trechos do PDF por similaridade e fornece fonte e página. O
+  conteúdo só é atualizado quando o comando de indexação é executado novamente.
+- A indexação e as respostas do agente dependem de conexão à internet e de uma
+  chave OpenAI válida. O Qdrant é local, mas embeddings e chamadas ao modelo são
+  serviços externos. Sem internet/OpenAI, `/chat` pode responder HTTP 503 e a
+  indexação não conclui.
+- O histórico de `conversation_id` fica apenas em memória no processo e se perde
+  ao reiniciar; ele não autentica o cliente. A consulta de pedido confirma o
+  e-mail informado, mas não substitui autenticação de conta.
+- Os itens do CSV não guardam preço histórico; detalhes de pedido mostram preço
+  atual do catálogo por item, enquanto o total persistido é o total oficial do
+  pedido.
+
+## Uso de IA no desenvolvimento
+
+Assistentes de IA foram utilizados como apoio para estruturar e implementar a
+API, os modelos e migrações, a ingestão CSV, as consultas, a camada RAG, o agente
+e os testes. Também apoiaram revisão de erros e documentação. As alterações foram
+integradas ao repositório e verificadas com Ruff e Pytest; as respostas em
+execução dependem do modelo OpenAI configurado.
 
 ## Docker
 
