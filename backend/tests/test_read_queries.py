@@ -118,7 +118,9 @@ def test_search_products_combines_all_filters(session: Session) -> None:
     assert results[0].stock_quantity == 5
 
 
-def test_search_products_excludes_unavailable_and_returns_empty(session: Session) -> None:
+def test_search_products_excludes_unavailable_and_returns_empty(
+    session: Session,
+) -> None:
     assert search_available_products(session, term="Acoustic") == []
     assert search_available_products(session, term="Vintage") == []
     assert search_available_products(session, term="%") == []

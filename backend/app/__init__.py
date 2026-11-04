@@ -1,2 +1,1 @@
 """Emporio Music backend application."""
-

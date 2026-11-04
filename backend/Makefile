@@ -1,4 +1,4 @@
-.PHONY: install dev test lint format migrate migration ingest
+.PHONY: install dev test lint format migrate migration ingest index-policies
 
 install:
 	python -m pip install -e ".[dev]"
@@ -25,4 +25,7 @@ migration:
 
 ingest:
 	python -m app.scripts.ingest_csv --data-dir app/data
+
+index-policies:
+	python -m app.scripts.index_policies
 

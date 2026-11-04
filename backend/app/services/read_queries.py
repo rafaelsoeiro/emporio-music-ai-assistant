@@ -68,9 +68,7 @@ def _escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def _validate_price_range(
-    minimum: Decimal | None, maximum: Decimal | None
-) -> None:
+def _validate_price_range(minimum: Decimal | None, maximum: Decimal | None) -> None:
     if minimum is not None and minimum < 0:
         raise ValueError("minimum price cannot be negative")
     if maximum is not None and maximum < 0:
@@ -146,9 +144,7 @@ def get_active_promotions(session: Session) -> list[PromotionResult]:
 
     results = []
     for promotion, product in rows:
-        multiplier = (Decimal("100") - promotion.discount_percent) / Decimal(
-            "100"
-        )
+        multiplier = (Decimal("100") - promotion.discount_percent) / Decimal("100")
         final_price = (product.price_brl * multiplier).quantize(
             _CENT, rounding=ROUND_HALF_UP
         )
@@ -193,9 +189,7 @@ def get_order_detail(session: Session, order_id: int) -> OrderDetailResult | Non
             product_name=product.name,
             quantity=item.quantity,
             current_unit_price_brl=product.price_brl,
-            current_line_total_brl=(product.price_brl * item.quantity).quantize(
-                _CENT
-            ),
+            current_line_total_brl=(product.price_brl * item.quantity).quantize(_CENT),
         )
         for item, product in item_rows
     )

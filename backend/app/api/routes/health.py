@@ -12,7 +12,7 @@ router = APIRouter(prefix="/health", tags=["health"])
 
 
 @router.get("", response_model=HealthResponse)
-def health_check(db: Annotated[Session, Depends(get_db)]) -> HealthResponse:
+async def health_check(db: Annotated[Session, Depends(get_db)]) -> HealthResponse:
     try:
         db.execute(text("SELECT 1"))
     except SQLAlchemyError as exc:
@@ -22,4 +22,3 @@ def health_check(db: Annotated[Session, Depends(get_db)]) -> HealthResponse:
         ) from exc
 
     return HealthResponse(status="ok")
-

@@ -107,6 +107,131 @@ Filtros de preço negativos, faixa invertida ou `category_id` não positivo gera
 `ValueError`. Os resultados são dataclasses imutáveis e não expõem entidades ORM
 para alteração.
 
+## RAG das políticas da loja
+
+A camada em `app.rag` indexa o PDF de políticas com `PyPDFLoader`, divide o texto
+com `RecursiveCharacterTextSplitter`, gera vetores com OpenAI Embeddings e usa o
+Qdrant em modo local persistente. Ela ainda não está conectada a endpoints nem a
+um agente.
+
+Configure o `.env`:
+
+```dotenv
+OPENAI_API_KEY=sk-...
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+QDRANT_PATH=./data/qdrant
+QDRANT_COLLECTION=store_policies
+RAG_PDF_PATH=./app/data/políticas_da_loja.pdf
+RAG_CHUNK_SIZE=1000
+RAG_CHUNK_OVERLAP=150
+RAG_TOP_K=4
+```
+
+Depois, indexe o documento:
+
+```bash
+python -m app.scripts.index_policies
+# ou
+make index-policies
+```
+
+Também é possível indicar outro arquivo com `--pdf caminho/arquivo.pdf`. Cada
+chunk recebe metadados de fonte, página (iniciando em 1), índice e hash do PDF.
+Os IDs são UUIDs determinísticos: uma reexecução faz upsert dos mesmos pontos e,
+somente depois, remove chunks antigos daquela fonte que não existam mais. Assim,
+a indexação pode ser repetida sem duplicar vetores.
+
+O retriever é usado diretamente pela camada de aplicação, sem expor endpoint:
+
+```python
+from app.rag.retriever import PolicyRetriever
+
+with PolicyRetriever.from_settings() as retriever:
+    chunks = retriever.retrieve("Qual é o prazo para troca?")
+```
+
+`retrieve` retorna uma lista de trechos com conteúdo, fonte, página e score. Uma
+consulta sem correspondência retorna `[]`; uma pergunta vazia gera `ValueError`.
+Se a coleção ainda não foi indexada, a criação configurada do retriever gera
+`RAGNotIndexedError`.
+
+Os testes de RAG usam mocks para loader, splitter, vector store e busca vetorial;
+eles não enviam dados à OpenAI nem iniciam um serviço Qdrant externo.
+
+## Agente de atendimento
+
+O agente usa `ChatOpenAI` com tool calling explícito. O loop está implementado em
+`app.agent.service`: cada chamada é validada, executada por nome e devolvida ao
+modelo como `ToolMessage`. Não é usado SQL livre nem um executor automático de
+agentes.
+
+Configuração adicional:
+
+```dotenv
+OPENAI_CHAT_MODEL=gpt-4.1-mini
+AGENT_MAX_TOOL_ITERATIONS=6
+AGENT_HISTORY_MESSAGES=20
+```
+
+As tools registradas são somente leitura:
+
+- busca de produtos ativos e em estoque;
+- promoções ativas;
+- recuperação de políticas no Qdrant;
+- consulta de pedido no SQLite.
+
+A tool de pedido exige `order_id` e `customer_email`. Sem os dois campos, ela não
+é executada e o modelo recebe uma instrução para solicitar a confirmação sem
+revelar se o pedido existe. Quando os dados não correspondem, a resposta da tool
+também é genérica e não contém informações do pedido.
+
+`conversation_id` é opcional. Quando enviado, mantém apenas as mensagens recentes
+em memória no processo atual; esse histórico é perdido ao reiniciar a aplicação e
+não substitui autenticação.
+
+### Endpoint
+
+O único endpoint do agente é `POST /chat` — sem prefixo `/api/v1`:
+
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "message": "Quais guitarras estão disponíveis até R$ 2.000?",
+    "conversation_id": "cliente-123"
+  }'
+```
+
+Resposta:
+
+```json
+{
+  "answer": "Encontrei estas opções...",
+  "sources": [
+    {
+      "kind": "database",
+      "name": "SQLite: products/categories",
+      "page": null
+    }
+  ]
+}
+```
+
+Exemplo de consulta confirmada de pedido:
+
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "message": "Consulte o pedido 20 para cliente@exemplo.com",
+    "conversation_id": "cliente-123"
+  }'
+```
+
+Fontes de políticas incluem o nome do PDF e a página. Consultas que não usam
+tools retornam `sources: []`. Falha temporária do modelo ou excesso de iterações
+retorna HTTP 503; payload inválido retorna HTTP 422. Ainda não há front-end.
+
 ## Docker
 
 ```bash
@@ -118,4 +243,5 @@ docker run --rm -p 8000:8000 --env-file .env emporio-music-backend
 
 - `GET /`: informações básicas da API
 - `GET /api/v1/health`: verificação de saúde
+- `POST /chat`: atendimento com tools somente leitura
 

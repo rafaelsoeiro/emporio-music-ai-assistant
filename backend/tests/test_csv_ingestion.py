@@ -176,7 +176,8 @@ def test_ingestion_rejects_incomplete_collection(engine, tmp_path: Path) -> None
         ],
     )
 
-    with Session(engine) as session, pytest.raises(
-        CSVIngestionError, match="Missing CSV datasets"
+    with (
+        Session(engine) as session,
+        pytest.raises(CSVIngestionError, match="Missing CSV datasets"),
     ):
         ingest_csv_directory(session, tmp_path)

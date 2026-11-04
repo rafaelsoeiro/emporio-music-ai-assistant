@@ -13,16 +13,45 @@ def _alembic_config(database_url: str) -> Config:
     return config
 
 
-def _seed_revision_0001(database_url: str) -> None:
+def test_initial_migration_creates_complete_schema(tmp_path: Path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'migration.db'}"
+    config = _alembic_config(database_url)
+
+    command.upgrade(config, "head")
+
     engine = create_engine(database_url)
+    inspector = inspect(engine)
+    expected_tables = {
+        "alembic_version",
+        "categories",
+        "customers",
+        "order_items",
+        "orders",
+        "products",
+        "promotions",
+    }
+    order_foreign_tables = {
+        foreign_key["referred_table"]
+        for foreign_key in inspector.get_foreign_keys("orders")
+    }
+    item_foreign_tables = {
+        foreign_key["referred_table"]
+        for foreign_key in inspector.get_foreign_keys("order_items")
+    }
+
+    assert set(inspector.get_table_names()) == expected_tables
+    assert order_foreign_tables == {"customers"}
+    assert item_foreign_tables == {"orders", "products"}
+
     with engine.begin() as connection:
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
         connection.execute(
             text(
                 """
                 INSERT INTO customers
                     (customer_id, name, phone, email, city)
                 VALUES
-                    (1, 'Legacy Customer', '123', 'legacy@example.com', 'Test City')
+                    (1, 'Customer', '123', 'customer@example.com', 'Test City')
                 """
             )
         )
@@ -30,7 +59,7 @@ def _seed_revision_0001(database_url: str) -> None:
             text(
                 """
                 INSERT INTO categories (category_id, name, description)
-                VALUES (1, 'Legacy Category', 'Existing data')
+                VALUES (1, 'Category', 'Test category')
                 """
             )
         )
@@ -41,46 +70,11 @@ def _seed_revision_0001(database_url: str) -> None:
                     (product_id, price_brl, name, category_id, description,
                      stock_quantity, status, specs, created_at)
                 VALUES
-                    (10, 99.90, 'Legacy Product', 1, 'Existing data',
+                    (10, 99.90, 'Product', 1, 'Test product',
                      1, 'active', '{}', '2025-01-01')
                 """
             )
         )
-        connection.execute(
-            text(
-                """
-                INSERT INTO order_items (order_id, product_id, quantity)
-                VALUES (100, 10, 2)
-                """
-            )
-        )
-    engine.dispose()
-
-
-def test_add_orders_migration_preserves_existing_order_items(tmp_path: Path) -> None:
-    database_url = f"sqlite:///{tmp_path / 'migration.db'}"
-    config = _alembic_config(database_url)
-
-    command.upgrade(config, "0001_initial")
-    _seed_revision_0001(database_url)
-    command.upgrade(config, "0002_add_orders")
-
-    engine = create_engine(database_url)
-    inspector = inspect(engine)
-    foreign_tables = {
-        foreign_key["referred_table"]
-        for foreign_key in inspector.get_foreign_keys("order_items")
-    }
-
-    with engine.begin() as connection:
-        item = connection.execute(
-            text(
-                """
-                SELECT order_id, product_id, quantity
-                FROM order_items
-                """
-            )
-        ).one()
         connection.execute(
             text(
                 """
@@ -93,24 +87,20 @@ def test_add_orders_migration_preserves_existing_order_items(tmp_path: Path) -> 
                 """
             )
         )
-
-    with engine.connect() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO order_items (order_id, product_id, quantity)
+                VALUES (100, 10, 2)
+                """
+            )
+        )
         violations = connection.exec_driver_sql("PRAGMA foreign_key_check").all()
 
-    assert tuple(item) == (100, 10, 2)
-    assert foreign_tables == {"orders", "products"}
     assert violations == []
     engine.dispose()
 
-    command.downgrade(config, "0001_initial")
-
+    command.downgrade(config, "base")
     engine = create_engine(database_url)
-    inspector = inspect(engine)
-    with engine.connect() as connection:
-        preserved_item = connection.execute(
-            text("SELECT order_id, product_id, quantity FROM order_items")
-        ).one()
-
-    assert "orders" not in inspector.get_table_names()
-    assert tuple(preserved_item) == (100, 10, 2)
+    assert inspect(engine).get_table_names() == ["alembic_version"]
     engine.dispose()

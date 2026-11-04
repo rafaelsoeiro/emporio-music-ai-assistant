@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.api.router import api_router
+from app.api.routes.chat import router as chat_router
 from app.core.config import settings
 
 
@@ -12,6 +13,7 @@ def create_app() -> FastAPI:
     )
 
     application.include_router(api_router, prefix=settings.api_v1_prefix)
+    application.include_router(chat_router)
 
     @application.get("/", tags=["root"])
     async def root() -> dict[str, str]:
@@ -21,4 +23,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-

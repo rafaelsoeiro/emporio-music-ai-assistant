@@ -51,10 +51,26 @@ def upgrade() -> None:
         "ix_products_category_id", "products", ["category_id"], unique=False
     )
     op.create_table(
+        "orders",
+        sa.Column("order_id", sa.Integer(), nullable=False),
+        sa.Column("customer_id", sa.Integer(), nullable=False),
+        sa.Column("order_date", sa.Date(), nullable=False),
+        sa.Column("status", sa.String(length=30), nullable=False),
+        sa.Column("total_brl", sa.Numeric(precision=12, scale=2), nullable=False),
+        sa.Column("payment_method", sa.String(length=30), nullable=False),
+        sa.Column("tracking_code", sa.String(length=50), nullable=True),
+        sa.Column("estimated_delivery", sa.Date(), nullable=True),
+        sa.Column("notes", sa.Text(), nullable=True),
+        sa.ForeignKeyConstraint(["customer_id"], ["customers.customer_id"]),
+        sa.PrimaryKeyConstraint("order_id"),
+    )
+    op.create_index("ix_orders_customer_id", "orders", ["customer_id"], unique=False)
+    op.create_table(
         "order_items",
         sa.Column("order_id", sa.Integer(), nullable=False),
         sa.Column("product_id", sa.Integer(), nullable=False),
         sa.Column("quantity", sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(["order_id"], ["orders.order_id"]),
         sa.ForeignKeyConstraint(["product_id"], ["products.product_id"]),
         sa.PrimaryKeyConstraint("order_id", "product_id"),
     )
@@ -77,6 +93,8 @@ def downgrade() -> None:
     op.drop_index("ix_promotions_product_id", table_name="promotions")
     op.drop_table("promotions")
     op.drop_table("order_items")
+    op.drop_index("ix_orders_customer_id", table_name="orders")
+    op.drop_table("orders")
     op.drop_index("ix_products_category_id", table_name="products")
     op.drop_table("products")
     op.drop_index("ix_customers_email", table_name="customers")

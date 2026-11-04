@@ -1,4 +1,4 @@
-from collections.abc import Generator
+from collections.abc import AsyncGenerator
 from sqlite3 import Connection as SQLiteConnection
 from typing import Any
 
@@ -16,9 +16,7 @@ def _connect_args(database_url: str) -> dict[str, bool]:
 
 
 @event.listens_for(Engine, "connect")
-def _enable_sqlite_foreign_keys(
-    dbapi_connection: Any, connection_record: Any
-) -> None:
+def _enable_sqlite_foreign_keys(dbapi_connection: Any, connection_record: Any) -> None:
     if isinstance(dbapi_connection, SQLiteConnection):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
@@ -33,6 +31,6 @@ engine = create_engine(
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
-def get_db() -> Generator[Session, None, None]:
+async def get_db() -> AsyncGenerator[Session, None]:
     with SessionLocal() as session:
         yield session

@@ -119,9 +119,7 @@ def _promotion(row: Mapping[str, str]) -> Row:
     return {
         "promotion_id": _integer(row["promotion_id"], "promotion_id"),
         "product_id": _integer(row["product_id"], "product_id"),
-        "discount_percent": _decimal(
-            row["discount_percent"], "discount_percent"
-        ),
+        "discount_percent": _decimal(row["discount_percent"], "discount_percent"),
         "description": row["description"].strip(),
         "is_active": _boolean(row["is_active"], "is_active"),
     }
@@ -250,9 +248,7 @@ def _read_rows(path: Path, dataset: Dataset) -> list[Row]:
             try:
                 parsed.append(dataset.parser(row))
             except (CSVIngestionError, KeyError) as exc:
-                raise CSVIngestionError(
-                    f"{path.name}:{line_number}: {exc}"
-                ) from exc
+                raise CSVIngestionError(f"{path.name}:{line_number}: {exc}") from exc
     return parsed
 
 
